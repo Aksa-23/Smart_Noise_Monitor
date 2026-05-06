@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SmartNoise Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <main class="container">
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">B</div>
+        <div>
+          <h1>SmartNoise Monitor</h1>
+          <p><span class="online-dot"></span> Online</p>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button><i class="fa-solid fa-ellipsis"></i></button>
+        <button><i class="fa-regular fa-bell"></i></button>
+        <button><i class="fa-regular fa-face-smile"></i></button>
+      </div>
+    </header>
+
+    <section class="dashboard-grid">
+
+      <section class="card gauge-card">
+        <h2>Live dB Level <span>(V0)</span></h2>
+
+        <div class="gauge-wrap">
+          <div class="gauge-arc"></div>
+          <div class="gauge-inner"></div>
+          <div class="gauge-value" id="dbValue">--</div>
+          <div class="gauge-unit">dB</div>
+          <div class="gauge-min">0</div>
+          <div class="gauge-max">100</div>
+        </div>
+
+        <div class="realtime">Realtime</div>
+      </section>
+
+      <section class="card status-card">
+        <h2>Status <span>(V1)</span></h2>
+        <div id="statusBox" class="status normal">NORMAL</div>
+        <p id="statusText" class="status-text">Environment is under control</p>
+        <p id="timestamp" class="timestamp">--</p>
+      </section>
+
+      <section class="card mode-card">
+        <h2>Monitoring Mode <span>(V2)</span></h2>
+
+        <div class="mode-buttons">
+            <button onclick="setMode('Study')" id="modeStudy">
+                <i class="fa-solid fa-book-open"></i>
+                <span>Study</span>
+            </button>
+
+            <button onclick="setMode('Normal')" id="modeNormal">
+                <i class="fa-solid fa-users"></i>
+                <span>Normal</span>
+            </button>
+
+            <button onclick="setMode('Event')" id="modeEvent">
+                <i class="fa-regular fa-flag"></i>
+                <span>Event</span>
+            </button>
+        </div>
+
+        <p>Current Mode: <strong id="currentMode">Study</strong></p>
+        <p>Threshold: <strong id="threshold">50 dB</strong></p>
+      </section>
+
+      <section class="card threshold-card">
+        <h2>Current Threshold <span>(V6)</span></h2>
+        <div class="threshold-value"><span id="thresholdOnly">50</span> <small>dB</small></div>
+      </section>
+
+    <section class="indicator-row">
+        <div class="card indicator" id="alertCard">
+            <h3>Alert <span>(V5)</span></h3>
+            <div class="circle red"><i class="fa-regular fa-bell"></i></div>
+            <p>OFF</p>
+            <small>No Alert</small>
+        </div>
+
+        <div class="card indicator" id="eventCard">
+            <h3>Event Marker <span>(V3)</span></h3>
+            <div class="circle"><i class="fa-regular fa-flag"></i></div>
+            <p>OFF</p>
+            <small>No Event</small>
+        </div>
+
+        <div class="card indicator" id="muteCard">
+            <h3>Mute <span>(V4)</span></h3>
+            <div class="circle"><i class="fa-solid fa-volume-xmark"></i></div>
+            <p>OFF</p>
+            <small>Sound Enabled</small>
+        </div>
+
+        <div class="card indicator" id="buzzerCard">
+            <h3>Buzzer <span>(V7)</span></h3>
+            <div class="circle green"><i class="fa-solid fa-volume-high"></i></div>
+            <p>OFF</p>
+            <small>Buzzer Off</small>
+        </div>
+    </section>
+
+      <section class="card chart-card">
+        <h2>dB Level Trend <span>(Last 1 Hour)</span> <span>(V0)</span></h2>
+        <canvas id="dbChart"></canvas>
+      </section>
+
+      <section class="card details-card">
+        <h2>Device Details</h2>
+
+        <div class="details-grid">
+        <div>
+            <p><i class="fa-solid fa-location-dot"></i> <strong>Location</strong></p>
+            <span id="location">Sheltered campus area</span>
+            </div>
+
+            <div>
+            <p><i class="fa-solid fa-globe"></i> <strong>Device IP</strong></p>
+            <span id="deviceIp">192.168.1.105</span>
+            </div>
+
+            <div>
+            <p><i class="fa-solid fa-microchip"></i> <strong>Device ID</strong></p>
+            <span id="deviceId">rpi-008</span>
+            </div>
+
+            <div>
+            <p><i class="fa-regular fa-clock"></i> <strong>Uptime</strong></p>
+            <span>2h 15m 33s</span>
+            </div>
+
+            <div>
+            <p><i class="fa-regular fa-calendar"></i> <strong>Last Updated</strong></p>
+            <span id="lastUpdated">--</span>
+            </div>
+
+            <div>
+            <p><i class="fa-solid fa-wifi"></i> <strong>Data Source</strong></p>
+            <span>Raspberry Pi</span>
+        </div>
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

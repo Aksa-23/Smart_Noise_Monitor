@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+venv/
+.env
+
+# Flask
+instance/
+.flaskenv
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+npm-debug.log*
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Environment variables
+.env.local
+.env.production
+
+# Temporary files
+tmp/
+temp/
+
+# Blynk / secrets
+secrets.py
+config.json
