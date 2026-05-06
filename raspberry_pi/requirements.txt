@@ -1,0 +1,4 @@
+﻿numpy
+Pillow
+gpiozero
+paho-mqtt
