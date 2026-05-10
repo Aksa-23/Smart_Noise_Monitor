@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request
 from datetime import datetime
 import json
 import threading
+import time
 import paho.mqtt.client as mqtt
 
 app = Flask(__name__)
@@ -17,6 +18,11 @@ thresholds = {
     "Normal": 70,
     "Event": 85
 }
+
+# Hold button states for a few seconds so the dashboard does not miss short presses
+BUTTON_HOLD_SECONDS = 3
+mute_hold_until = 0
+event_hold_until = 0
 
 latest_reading = {
     "db": 0,
@@ -36,6 +42,10 @@ latest_reading = {
 }
 
 
+def is_active_button(value):
+    return value not in ["NONE", None, ""]
+
+
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("Connected to Raspberry Pi MQTT broker")
@@ -46,7 +56,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    global latest_reading
+    global latest_reading, mute_hold_until, event_hold_until
 
     try:
         payload = json.loads(msg.payload.decode("utf-8"))
@@ -55,15 +65,31 @@ def on_message(client, userdata, msg):
         threshold = thresholds[current_mode]
         status = "ALERT" if db >= threshold else "NORMAL"
 
+        red_button = payload.get("red_button")
+        green_button = payload.get("green_button")
+        buzzer_state = payload.get("buzzer")
+
+        now = time.time()
+
+        # If button is pressed, keep the state visible for a few seconds
+        if is_active_button(red_button):
+            mute_hold_until = now + BUTTON_HOLD_SECONDS
+
+        if is_active_button(green_button):
+            event_hold_until = now + BUTTON_HOLD_SECONDS
+
+        mute_active = now < mute_hold_until
+        event_active = now < event_hold_until
+
         latest_reading = {
             "db": db,
             "status": status,
             "mode": current_mode,
             "threshold": threshold,
             "alert": status == "ALERT",
-            "event": payload.get("green_button") == "PRESSED",
-            "mute": payload.get("red_button") == "PRESSED",
-            "buzzer": payload.get("buzzer") == "ON",
+            "event": event_active,
+            "mute": mute_active,
+            "buzzer": buzzer_state in ["ON", "BEEP"],
             "timestamp": payload.get(
                 "timestamp",
                 datetime.now().strftime("%d %b %Y, %I:%M:%S %p")
@@ -72,10 +98,21 @@ def on_message(client, userdata, msg):
             "device_ip": payload.get("device_ip", "172.20.10.2"),
             "location": payload.get("location", "Sheltered campus area"),
             "uptime": "Live",
-            "data_source": "Raspberry Pi MQTT"
+            "data_source": "Raspberry Pi MQTT",
+
+            # Raw values are useful for debugging
+            "green_button_raw": green_button,
+            "red_button_raw": red_button,
+            "buzzer_raw": buzzer_state
         }
 
-        print(f"Received MQTT data: {db} dB | Status: {status}")
+        print(
+            f"Received MQTT data: {db} dB | "
+            f"Status: {status} | "
+            f"Red: {red_button} | "
+            f"Green: {green_button} | "
+            f"Buzzer: {buzzer_state}"
+        )
 
     except Exception as e:
         print(f"Error processing MQTT message: {e}")
