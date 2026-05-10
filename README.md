@@ -5,32 +5,52 @@
 
 ## Overview
 
-**SmartNoise Monitor** is a low-cost, continuously operating IoT system that captures, processes, and visualises ambient noise levels in real time. Deployed on a university campus, the system samples audio via a USB microphone on a Raspberry Pi 3B+, applies A-weighting filtering to compute accurate dB levels, and streams data via MQTT to a Flask-based web dashboard.
+**SmartNoise Monitor** is a low-cost IoT noise monitoring system that captures, processes, and visualises ambient noise levels in real time.
 
-The system goes beyond passive monitoring — it features **physical human-computer interaction** through push-button controls and a **buzzer alert system**, alongside an **interactive mode selection dashboard** that dynamically adjusts detection thresholds based on the current environment.
+The system uses a **Raspberry Pi 3B+** with a **USB microphone** to collect live sound data. The Raspberry Pi estimates the current noise level in decibels, publishes the readings through **MQTT**, and sends them to a **Flask-based dashboard** for real-time display.
+
+The project also includes interactive components such as:
+
+- A green button for manual event marking
+- A red button for mute / alert acknowledgement
+- A buzzer alert when the noise level exceeds the threshold
+- A web dashboard with mode selection for different environments
+
+The current working integration supports the following real-time data flow:
+
+```text
+Raspberry Pi USB microphone
+→ Raspberry Pi noise monitoring script
+→ Mosquitto MQTT broker
+→ smart_noise/readings MQTT topic
+→ Flask backend MQTT subscriber
+→ /api/live REST API
+→ Web dashboard real-time display
+```
 
 ---
 
 ## Features
 
-- Real-time dB monitoring with A-weighting filter
-- OLED local display showing live dB level and system status
-- Green button — manual EVENT marker
-- Red button — MUTE / alert acknowledgement
-- Buzzer alert triggered on threshold breach
+- Real-time dB monitoring from a Raspberry Pi USB microphone
 - MQTT publishing from Raspberry Pi to `smart_noise/readings`
-- SQLite time-series database logging
-- Flask web dashboard with live dB graph, historical heatmap, and forecast chart
-- Interactive mode selection (Study / Normal / Event)
-- 24-hour noise forecast model
-- SSH remote access over shared Wi-Fi / hotspot
-- Automated email alerts (reactive + proactive)
+- Flask backend subscribing to live MQTT data
+- `/api/live` endpoint returning the latest Raspberry Pi reading
+- Web dashboard displaying live noise levels
+- Interactive mode selection: Study / Normal / Event
+- Dynamic threshold checking based on selected mode
+- Alert status when the live dB value exceeds the threshold
+- Green button for manual event marker
+- Red button for mute / alert acknowledgement
+- Buzzer feedback when alert status is triggered
+- Local Raspberry Pi terminal output for live monitoring and debugging
+- Integration testing notes included in `INTEGRATION_TESTING.md`
 
 ---
 
 ## System Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │              SENSOR NODE                     │
 │                                              │
@@ -38,37 +58,36 @@ The system goes beyond passive monitoring — it features **physical human-compu
 │       │                                      │
 │       ▼                                      │
 │  [Raspberry Pi 3B+]                          │
-│   ├── pyaudio sampling                       │
-│   ├── A-weighting + dB estimation            │
+│   ├── Audio sampling                         │
+│   ├── dB estimation                          │
 │   ├── Green Button → EVENT marker            │
 │   ├── Red Button   → MUTE / acknowledge      │
 │   ├── Buzzer       → ALERT feedback          │
-│   ├── OLED Display → Live dB + status        │
 │   └── MQTT publish → smart_noise/readings    │
 └─────────────────────┬───────────────────────┘
                       │ Wi-Fi / MQTT
                       ▼
              ┌────────────────┐
              │  MQTT Broker   │
-             │  (Mosquitto)   │
+             │  Mosquitto     │
              └───────┬────────┘
                      │
                      ▼
         ┌────────────────────────┐
-        │     Python Backend     │
-        │  ├── SQLite logging    │
-        │  ├── Threshold detect  │
-        │  ├── Alert engine      │
-        │  └── Forecast model    │
+        │     Flask Backend      │
+        │  ├── MQTT subscriber   │
+        │  ├── Latest data store │
+        │  ├── Mode threshold    │
+        │  └── /api/live API     │
         └───────────┬────────────┘
                     │
                     ▼
         ┌────────────────────────┐
-        │    Flask Dashboard     │
-        │  ├── Live dB graph     │
-        │  ├── Historical heatmap│
+        │    Web Dashboard       │
+        │  ├── Live dB display   │
+        │  ├── Status display    │
         │  ├── Mode selection UI │
-        │  └── Alert event log   │
+        │  └── Alert indication  │
         └────────────────────────┘
 ```
 
@@ -76,17 +95,15 @@ The system goes beyond passive monitoring — it features **physical human-compu
 
 ## Hardware
 
-| Component | Model | Purpose |
+| Component | Model / Type | Purpose |
 |---|---|---|
-| Microcontroller | Raspberry Pi 3B+ | Central processing unit |
+| Microcontroller | Raspberry Pi 3B+ | Main edge processing device |
 | Microphone | USB Microphone | Ambient sound capture |
-| Display | OLED 128x64 SSD1306 | Local real-time dB + status display |
-| Button | Green SPST Momentary | Manual event marker |
-| Button | Red SPST Momentary | Mute / alert acknowledgement |
-| Buzzer | Piezo Buzzer 5V | Audio feedback on threshold breach |
-| Breadboard | 830 Tie Point | Prototyping |
-| Wires | M/F + F/F Jumper Wires | GPIO connections |
-| Power | 5V Official RPi PSU | Stable power supply |
+| Button | Green Button | Manual event marker |
+| Button | Red Button | Mute / alert acknowledgement |
+| Buzzer | Piezo Buzzer | Audio feedback when alert is triggered |
+| Network | Wi-Fi / Hotspot | Communication between Raspberry Pi and laptop |
+| Laptop | macOS laptop | Runs Flask dashboard during local testing |
 
 ---
 
@@ -94,132 +111,483 @@ The system goes beyond passive monitoring — it features **physical human-compu
 
 | Layer | Technology |
 |---|---|
-| Edge Processing | Python 3, pyaudio, RPi.GPIO, scipy |
-| Communication | MQTT, paho-mqtt, Mosquitto broker |
-| Display | luma.oled, SSD1306 |
-| Backend | Python, SQLite |
-| Dashboard | Flask, Chart.js |
-| Remote Access | SSH over Wi-Fi / hotspot |
+| Edge Processing | Python 3 |
+| Communication | MQTT, Mosquitto, paho-mqtt |
+| Backend | Flask, Python |
+| Dashboard | Flask templates, HTML, CSS, JavaScript |
+| API | REST endpoint `/api/live` |
+| Remote Access | SSH |
+| Version Control | Git, GitHub |
+
+---
+
+## Project Structure
+
+```text
+Smart_Noise_Monitor/
+│
+├── app.py                         # Flask dashboard backend and MQTT subscriber
+├── README.md                      # Project documentation
+├── INTEGRATION_TESTING.md         # Integration testing notes
+│
+├── templates/
+│   └── dashboard.html             # Web dashboard page
+│
+├── static/
+│   └── ...                        # Frontend static files
+│
+└── raspberry_pi/
+    ├── smart_noise_mvp.py         # Raspberry Pi noise monitoring script
+    ├── requirements.txt           # Raspberry Pi dependencies
+    └── backend/                   # Raspberry Pi backend-related files
+```
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Raspberry Pi 3B+ running Raspberry Pi OS
-- Python 3.9+
-- Mosquitto MQTT broker installed
-- USB Microphone connected
 
-### 1. Clone the repository
+Before running the project, make sure the following requirements are met:
+
+- Raspberry Pi 3B+ is powered on
+- Raspberry Pi and laptop are connected to the same Wi-Fi / hotspot
+- USB microphone is connected to the Raspberry Pi
+- Mosquitto MQTT broker is installed and running on the Raspberry Pi
+- Python 3 is installed on both Raspberry Pi and laptop
+- Flask and paho-mqtt are installed in the laptop virtual environment
+
+---
+
+## 1. Clone the Repository
+
+On the laptop:
+
 ```bash
-git clone https://github.com/your-org/smartnoise-monitor.git
-cd smartnoise-monitor
+git clone https://github.com/Aksa-23/Smart_Noise_Monitor.git
+cd Smart_Noise_Monitor
 ```
 
-### 2. Install dependencies
+---
+
+## 2. Set Up the Flask Environment on the Laptop
+
+Create and activate a virtual environment:
+
 ```bash
-pip install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-### 3. Configure environment variables
+Install required Python packages:
+
 ```bash
-cp .env.example .env
-# Fill in MQTT broker address, alert email credentials, and detection thresholds
+pip install flask paho-mqtt
 ```
 
-### 4. Run the sensor node (on Raspberry Pi)
+---
+
+## 3. Connect to the Raspberry Pi
+
+SSH into the Raspberry Pi:
+
 ```bash
-python sensor_read.py
+ssh csseiot@172.20.10.2
 ```
 
-### 5. Run the backend subscriber (on laptop or Pi)
+Both the laptop and Raspberry Pi must be connected to the same network.
+
+---
+
+## 4. Start the Raspberry Pi Noise Monitoring Script
+
+On the Raspberry Pi:
+
 ```bash
-python backend.py
+cd /home/csseiot
+python3 smart_noise_mvp.py
 ```
 
-### 6. Launch the dashboard
-```bash
-python dashboard/app.py
+If the script is running correctly, the terminal should show output similar to:
+
+```text
+MQTT connected: localhost:1883
+Publishing to topic: smart_noise/readings
+Smart Noise Monitor MVP started.
+Hardware included: USB mic, OLED, green button, red button, buzzer
+MQTT publishing enabled if broker is running.
+Green button = manual event marker
+Red button = mute / acknowledge alert
+Buzzer = beeps when status is ALERT
+Press Ctrl + C to stop.
+dB: 38.64 | Status: NORMAL | Green: NONE | Red: NONE | Buzzer: OFF | MQTT: OK
 ```
 
-### 7. SSH into Raspberry Pi remotely
+Keep this terminal running while using the dashboard.
+
+---
+
+## 5. Start the Flask Dashboard on the Laptop
+
+Open a new terminal on the laptop:
+
 ```bash
-ssh pi@<raspberry-pi-ip>
-# Both devices must be on the same Wi-Fi or hotspot
+cd ~/Desktop/Smart_Noise_Monitor
+source venv/bin/activate
+python app.py
+```
+
+If the Flask backend successfully connects to the Raspberry Pi MQTT broker, the terminal should show:
+
+```text
+Connected to Raspberry Pi MQTT broker
+Subscribed to topic: smart_noise/readings
+Received MQTT data: 38.64 dB | Status: NORMAL
+```
+
+---
+
+## 6. Open the Dashboard
+
+Open the following URL in a browser:
+
+```text
+http://127.0.0.1:5000
+```
+
+The dashboard should display real-time noise readings from the Raspberry Pi.
+
+---
+
+## 7. Test the Live API
+
+To verify that Flask is receiving live Raspberry Pi MQTT data, run:
+
+```bash
+curl http://127.0.0.1:5000/api/live
+```
+
+Example response:
+
+```json
+{
+  "alert": false,
+  "buzzer": false,
+  "data_source": "Raspberry Pi MQTT",
+  "db": 38.64,
+  "device_id": "rpi-008",
+  "device_ip": "127.0.1.1",
+  "event": false,
+  "location": "Sheltered campus area",
+  "mode": "Study",
+  "mute": false,
+  "status": "NORMAL",
+  "threshold": 50,
+  "timestamp": "2026-05-10T14:48:20",
+  "uptime": "Live"
+}
+```
+
+If `"data_source"` is `"Raspberry Pi MQTT"`, the Flask backend is receiving live data from the Raspberry Pi.
+
+---
+
+## MQTT Configuration
+
+The Flask backend connects to the Raspberry Pi MQTT broker using:
+
+```python
+MQTT_BROKER = "172.20.10.2"
+MQTT_PORT = 1883
+MQTT_TOPIC = "smart_noise/readings"
+```
+
+The Raspberry Pi Mosquitto broker must allow external connections from the laptop.
+
+During local testing, Mosquitto was configured with:
+
+```conf
+listener 1883 0.0.0.0
+allow_anonymous true
+```
+
+After changing Mosquitto configuration, restart the broker:
+
+```bash
+sudo systemctl restart mosquitto
+```
+
+Check broker status:
+
+```bash
+sudo systemctl status mosquitto
+```
+
+The expected status is:
+
+```text
+Active: active (running)
 ```
 
 ---
 
 ## MQTT Payload Format
 
-Messages are published to topic `smart_noise/readings` in the following JSON format:
+The Raspberry Pi publishes live noise readings to the MQTT topic:
+
+```text
+smart_noise/readings
+```
+
+The current payload format is:
 
 ```json
 {
-  "avg_db": 65.2,
-  "peak_db": 71.4,
+  "timestamp": "2026-05-10T14:25:15",
+  "device_id": "rpi-008",
+  "device_ip": "127.0.1.1",
+  "location": "Sheltered campus area",
+  "estimated_db": 39.14,
+  "threshold_db": 70,
   "status": "NORMAL",
-  "mode": "Study",
-  "event_marker": false,
-  "muted": false,
-  "timestamp": "2026-04-07T22:15:00"
+  "green_button": "NONE",
+  "red_button": "NONE",
+  "buzzer": "OFF"
 }
 ```
 
-### Status Values
+### Payload Fields
 
-| Status | Meaning |
+| Field | Meaning |
 |---|---|
-| `NORMAL` | Below threshold — system nominal |
-| `WARNING` | Approaching threshold |
-| `ALERT` | Threshold exceeded — buzzer active |
-| `MUTED` | Alert acknowledged by red button |
-| `EVENT` | Manual event marked by green button |
+| `timestamp` | Time when the reading was generated |
+| `device_id` | Raspberry Pi device identifier |
+| `device_ip` | IP address reported by the Raspberry Pi |
+| `location` | Monitoring location |
+| `estimated_db` | Estimated live noise level in dB |
+| `threshold_db` | Threshold used by the Raspberry Pi script |
+| `status` | Current noise status, such as `NORMAL` or `ALERT` |
+| `green_button` | Manual event marker button state |
+| `red_button` | Mute / alert acknowledgement button state |
+| `buzzer` | Buzzer state, such as `OFF` or `BEEP` |
+
+---
+
+## Flask API Format
+
+The Flask backend converts the Raspberry Pi MQTT payload into the dashboard API format.
+
+The dashboard reads from:
+
+```text
+/api/live
+```
+
+The API response format is:
+
+```json
+{
+  "db": 38.64,
+  "status": "NORMAL",
+  "mode": "Study",
+  "threshold": 50,
+  "alert": false,
+  "event": false,
+  "mute": false,
+  "buzzer": false,
+  "timestamp": "2026-05-10T14:48:20",
+  "device_id": "rpi-008",
+  "device_ip": "127.0.1.1",
+  "location": "Sheltered campus area",
+  "uptime": "Live",
+  "data_source": "Raspberry Pi MQTT"
+}
+```
 
 ---
 
 ## Interaction Modes
 
-Users can select a monitoring profile via the web dashboard. Each mode dynamically adjusts the backend detection threshold in real time:
+The dashboard supports three monitoring modes. Each mode uses a different alert threshold.
 
-| Mode | Alert Threshold | Use Case |
-|---|---|---|
-| 🟢 Study Mode | 50 dB | Library, study rooms |
-| 🟡 Normal Mode | 70 dB | Standard campus outdoor |
-| 🔴 Event Mode | 85 dB | Outdoor events, gatherings |
+| Mode | Threshold | Use Case |
+|---|---:|---|
+| Study | 50 dB | Library / study rooms |
+| Normal | 70 dB | Standard campus outdoor areas |
+| Event | 85 dB | Outdoor events / gatherings |
+
+When the live dB value is greater than or equal to the selected threshold, the system status changes to:
+
+```text
+ALERT
+```
+
+Otherwise, the status remains:
+
+```text
+NORMAL
+```
 
 ---
 
-## Project Structure
+## Mode Switching API
 
+The selected mode can be updated through the dashboard or by sending a POST request.
+
+Example:
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/mode \
+-H "Content-Type: application/json" \
+-d '{"mode":"Normal"}'
 ```
-smartnoise-monitor/
-│
-├── sensor/
-│   ├── sensor_read.py       # Audio sampling, dB estimation, MQTT publish
-│   ├── display.py           # OLED display driver (luma.oled)
-│   └── buttons.py           # GPIO button + buzzer handler
-│
-├── backend/
-│   ├── backend.py           # MQTT subscriber + SQLite writer
-│   ├── alerts.py            # Threshold detection + email alerts
-│   └── forecast.py          # Moving average noise forecast model
-│
-├── dashboard/
-│   ├── app.py               # Flask REST API
-│   ├── templates/
-│   │   └── dashboard.html   # Chart.js frontend
-│   └── static/
-│
-├── tests/
-│   └── test_subscriber.py   # MQTT subscriber integration test
-│
-├── .env.example             # Environment variable template
-├── .gitignore
-├── requirements.txt
-└── README.md
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "mode": "Normal",
+  "threshold": 70
+}
 ```
+
+Invalid mode example:
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/mode \
+-H "Content-Type: application/json" \
+-d '{"mode":"Wrong"}'
+```
+
+Expected response:
+
+```json
+{
+  "success": false
+}
+```
+
+---
+
+## Real-Time Integration Testing
+
+The real-time Raspberry Pi integration has been tested using the following data flow:
+
+```text
+Raspberry Pi USB microphone
+→ Raspberry Pi noise monitoring script
+→ Mosquitto MQTT broker
+→ smart_noise/readings MQTT topic
+→ Flask backend MQTT subscriber
+→ /api/live REST API
+→ Web dashboard real-time display
+```
+
+### Tested Items
+
+- Raspberry Pi successfully publishes live dB readings through MQTT.
+- Flask backend connects to the Raspberry Pi MQTT broker.
+- Flask subscribes to the `smart_noise/readings` topic.
+- `/api/live` returns real Raspberry Pi MQTT data.
+- Dashboard displays real-time dB readings.
+- Mode thresholds can be changed through `/api/mode`.
+- Alert status updates when the live dB value exceeds the selected threshold.
+
+### Example Flask Log
+
+```text
+Connected to Raspberry Pi MQTT broker
+Subscribed to topic: smart_noise/readings
+Received MQTT data: 38.64 dB | Status: NORMAL
+```
+
+### Example Raspberry Pi Log
+
+```text
+dB: 73.06 | Status: ALERT | Green: NONE | Red: NONE | Buzzer: BEEP | MQTT: OK
+```
+
+---
+
+## Troubleshooting
+
+### 1. Flask shows `MQTT connection error: [Errno 61] Connection refused`
+
+This usually means the laptop cannot connect to the Raspberry Pi MQTT broker.
+
+Check that Mosquitto is running on the Raspberry Pi:
+
+```bash
+sudo systemctl status mosquitto
+```
+
+If it is not running, restart it:
+
+```bash
+sudo systemctl restart mosquitto
+```
+
+Also check that Mosquitto allows external connections:
+
+```conf
+listener 1883 0.0.0.0
+allow_anonymous true
+```
+
+---
+
+### 2. Dashboard shows no live updates
+
+Check the Raspberry Pi script is still running:
+
+```bash
+python3 smart_noise_mvp.py
+```
+
+Check Flask is receiving MQTT data:
+
+```text
+Received MQTT data: ... dB | Status: NORMAL
+```
+
+Check the live API:
+
+```bash
+curl http://127.0.0.1:5000/api/live
+```
+
+---
+
+### 3. SSH does not connect to Raspberry Pi
+
+Make sure both devices are on the same Wi-Fi or hotspot.
+
+Check the Raspberry Pi IP address:
+
+```bash
+hostname -I
+```
+
+Then connect using:
+
+```bash
+ssh csseiot@<raspberry-pi-ip>
+```
+
+---
+
+### 4. Flask receives duplicate MQTT messages
+
+Flask debug mode can start the reloader and create duplicate MQTT subscriptions.
+
+The project uses:
+
+```python
+app.run(debug=True, port=5000, use_reloader=False)
+```
+
+This prevents duplicate MQTT subscriptions during local testing.
 
 ---
 
@@ -236,12 +604,11 @@ smartnoise-monitor/
 
 ## Acknowledgements
 
-- [Raspberry Pi Foundation](https://www.raspberrypi.org/)
-- [Eclipse Mosquitto](https://mosquitto.org/)
-- [Core Electronics](https://core-electronics.com.au/) — hardware supplier
-- UWA CSSE Lab — hardware loan 
-- City of Perth [Open Data Portal](https://data.perth.wa.gov.au/)
-- WHO Environmental Noise Guidelines (2018)
+- Raspberry Pi Foundation
+- Eclipse Mosquitto
+- UWA CSSE Lab
+- University of Western Australia
+- CITS5506 Internet of Things teaching team
 
 ---
 
