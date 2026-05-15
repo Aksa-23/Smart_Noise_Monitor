@@ -98,12 +98,10 @@ def on_message(client, userdata, msg):
         db = float(payload.get("estimated_db", 0))
         threshold = thresholds[current_mode]
 
-        # Dashboard status should follow the currently selected dashboard mode
-        status = "ALERT" if db >= threshold else "NORMAL"
-
         red_button = payload.get("red_button")
         green_button = payload.get("green_button")
         buzzer_state = payload.get("buzzer")
+        pi_status = payload.get("status", "NORMAL")
 
         now = time.time()
 
@@ -111,19 +109,28 @@ def on_message(client, userdata, msg):
         if is_active_button(red_button):
             mute_hold_until = now + BUTTON_HOLD_SECONDS
 
-        if is_active_button(green_button):
+        if is_active_button(green_button) or pi_status == "MANUAL_ALERT":
             event_hold_until = now + BUTTON_HOLD_SECONDS
 
         mute_active = now < mute_hold_until
         event_active = now < event_hold_until
+
+        # Preserve manual alert from Raspberry Pi.
+        # Otherwise, calculate dashboard alert status using the selected mode threshold.
+        if pi_status == "MANUAL_ALERT" or is_active_button(green_button):
+            status = "MANUAL_ALERT"
+        elif db >= threshold:
+            status = "ALERT"
+        else:
+            status = "NORMAL"
 
         latest_reading = {
             "db": db,
             "status": status,
             "mode": current_mode,
             "threshold": threshold,
-            "alert": status == "ALERT",
-            "event": event_active,
+            "alert": status in ["ALERT", "MANUAL_ALERT"],
+            "event": event_active or status == "MANUAL_ALERT",
             "mute": mute_active,
             "buzzer": buzzer_state in ["ON", "BEEP"],
             "timestamp": payload.get(
@@ -142,6 +149,7 @@ def on_message(client, userdata, msg):
             "buzzer_raw": buzzer_state,
 
             # Pi-side values are useful for checking whether Pi received the mode
+            "pi_status": pi_status,
             "pi_mode": payload.get("mode", "unknown"),
             "pi_threshold": payload.get("threshold_db", "unknown")
         }
@@ -152,7 +160,8 @@ def on_message(client, userdata, msg):
             f"Dashboard threshold: {threshold} | "
             f"Pi mode: {payload.get('mode', 'unknown')} | "
             f"Pi threshold: {payload.get('threshold_db', 'unknown')} | "
-            f"Status: {status} | "
+            f"Pi status: {pi_status} | "
+            f"Dashboard status: {status} | "
             f"Red: {red_button} | "
             f"Green: {green_button} | "
             f"Buzzer: {buzzer_state}"
