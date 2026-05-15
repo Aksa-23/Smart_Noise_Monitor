@@ -6,13 +6,13 @@ import json
 import socket
 import numpy as np
 import paho.mqtt.client as mqtt
-
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from gpiozero import Button, Buzzer
 
 # ============================================================
 # SMART NOISE MONITOR MVP + MQTT
+#
 # Hardware:
 # - USB microphone
 # - PiicoDev OLED SSD1306
@@ -20,45 +20,61 @@ from gpiozero import Button, Buzzer
 # - Red button = mute / acknowledge alert
 # - 5V buzzer connected directly as advised by lab facilitator
 # - MQTT publishes JSON readings to smart_noise/readings
+# - MQTT subscribes to smart_noise/mode for dashboard mode changes
 # ============================================================
+
 
 # -----------------------------
 # Microphone settings
 # -----------------------------
-MIC_DEVICE = "plughw:2,0"      # USB microphone from arecord -l
+MIC_DEVICE = "plughw:2,0"   # USB microphone from arecord -l
 SAMPLE_RATE = 16000
-DURATION = 1                   # seconds per audio sample
+DURATION = 1                # seconds per audio sample
+
 
 # -----------------------------
 # OLED settings
 # -----------------------------
-OLED_ADDR = 0x3D               # OLED address from i2cdetect -y 1
+OLED_ADDR = 0x3D            # OLED address from i2cdetect -y 1
 I2C_BUS = 1
 WIDTH = 128
 HEIGHT = 64
+
 
 # -----------------------------
 # GPIO settings
 # Use the printed GPIO labels on the Pi case
 # -----------------------------
-GREEN_BUTTON_GPIO = 17         # Green button: GPIO17 + ground symbol
-RED_BUTTON_GPIO = 27           # Red button: GPIO27 + ground symbol
-BUZZER_GPIO = 22               # Buzzer + to GPIO22, buzzer - to ground symbol
+GREEN_BUTTON_GPIO = 17      # Green button: GPIO17 + ground symbol
+RED_BUTTON_GPIO = 27        # Red button: GPIO27 + ground symbol
+BUZZER_GPIO = 22            # Buzzer + to GPIO22, buzzer - to ground symbol
+
 
 # -----------------------------
 # Noise logic settings
 # -----------------------------
-THRESHOLD_DB = 70
-CALIBRATION_OFFSET = 90        # Keep this if quiet room reads around 35-45 dB
-MUTE_SECONDS = 10              # Red button mutes alert buzzer for 10 seconds
+current_mode = "Study"
+
+THRESHOLDS = {
+    "Study": 50,
+    "Normal": 70,
+    "Event": 85
+}
+
+CALIBRATION_OFFSET = 90     # Keep this if quiet room reads around 35-45 dB
+MUTE_SECONDS = 10           # Red button mutes alert buzzer for 10 seconds
+
 
 # -----------------------------
 # MQTT settings
 # -----------------------------
 MQTT_BROKER = "localhost"
 MQTT_PORT = 1883
-MQTT_TOPIC = "smart_noise/readings"
+MQTT_READING_TOPIC = "smart_noise/readings"
+MQTT_MODE_TOPIC = "smart_noise/mode"
+
 LOCATION = "Sheltered campus area"
+
 
 # -----------------------------
 # Hardware setup
@@ -76,13 +92,48 @@ muted_until = 0
 # MQTT FUNCTIONS
 # ============================================================
 
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print(f"MQTT connected: {MQTT_BROKER}:{MQTT_PORT}")
+        print(f"Publishing to topic: {MQTT_READING_TOPIC}")
+
+        client.subscribe(MQTT_MODE_TOPIC)
+        print(f"Subscribed to mode topic: {MQTT_MODE_TOPIC}")
+
+    else:
+        print(f"MQTT connection failed with return code: {rc}")
+
+
+def on_message(client, userdata, msg):
+    global current_mode
+
+    try:
+        payload = json.loads(msg.payload.decode("utf-8"))
+        mode = payload.get("mode")
+
+        if mode in THRESHOLDS:
+            current_mode = mode
+            print(
+                f"Mode updated from dashboard: {current_mode} | "
+                f"Threshold: {THRESHOLDS[current_mode]} dB"
+            )
+        else:
+            print(f"Invalid mode received: {mode}")
+
+    except Exception as error:
+        print(f"Failed to process mode message: {error}")
+
+
 def setup_mqtt():
     try:
         client = mqtt.Client()
+
+        client.on_connect = on_connect
+        client.on_message = on_message
+
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start()
-        print(f"MQTT connected: {MQTT_BROKER}:{MQTT_PORT}")
-        print(f"Publishing to topic: {MQTT_TOPIC}")
+
         return client
 
     except Exception as error:
@@ -97,7 +148,7 @@ def publish_mqtt(client, payload):
         return False
 
     try:
-        client.publish(MQTT_TOPIC, json.dumps(payload))
+        client.publish(MQTT_READING_TOPIC, json.dumps(payload))
         return True
 
     except Exception as error:
@@ -109,6 +160,7 @@ def get_device_ip():
     try:
         hostname = socket.gethostname()
         return socket.gethostbyname(hostname)
+
     except Exception:
         return "unknown"
 
@@ -175,14 +227,16 @@ def display_image(image):
         send_data(page_data)
 
 
-def show_oled(db_value, status, green_state, red_state, buzzer_state, mqtt_state):
+def show_oled(db_value, status, mode, green_state, red_state, buzzer_state, mqtt_state):
     image = Image.new("1", (WIDTH, HEIGHT), 0)
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default()
 
+    threshold = THRESHOLDS.get(mode, 70)
+
     draw.text((0, 0), "Smart Noise Monitor", font=font, fill=255)
-    draw.text((0, 13), f"dB: {db_value}", font=font, fill=255)
-    draw.text((0, 26), f"Status: {status}", font=font, fill=255)
+    draw.text((0, 13), f"dB: {db_value} T:{threshold}", font=font, fill=255)
+    draw.text((0, 26), f"{mode} | {status}", font=font, fill=255)
     draw.text((0, 39), f"G:{green_state} R:{red_state}", font=font, fill=255)
     draw.text((0, 52), f"B:{buzzer_state} M:{mqtt_state}", font=font, fill=255)
 
@@ -253,7 +307,7 @@ def main():
     init_display()
     buzzer.off()
 
-    show_oled("Ready", "START", "NONE", "NONE", "OFF", "WAIT")
+    show_oled("Ready", "START", current_mode, "NONE", "NONE", "OFF", "WAIT")
 
     print("Smart Noise Monitor MVP started.")
     print("Hardware included: USB mic, OLED, green button, red button, buzzer")
@@ -261,14 +315,20 @@ def main():
     print("Green button = manual event marker")
     print("Red button = mute / acknowledge alert")
     print("Buzzer = beeps when status is ALERT")
+    print("Mode-based thresholds:")
+    print("Study = 50 dB")
+    print("Normal = 70 dB")
+    print("Event = 85 dB")
     print("Press Ctrl + C to stop.")
 
     try:
         while True:
             audio = read_audio_chunk()
             db_value = calculate_db(audio)
-
             current_time = time.time()
+
+            # Get current threshold from current mode
+            current_threshold = THRESHOLDS[current_mode]
 
             # Green button behaviour
             if green_button.is_pressed:
@@ -283,8 +343,8 @@ def main():
             else:
                 red_state = "NONE"
 
-            # Status logic
-            if db_value >= THRESHOLD_DB:
+            # Status logic based on current mode threshold
+            if db_value >= current_threshold:
                 if current_time < muted_until:
                     status = "MUTED"
                 else:
@@ -302,7 +362,8 @@ def main():
                 "device_ip": get_device_ip(),
                 "location": LOCATION,
                 "estimated_db": db_value,
-                "threshold_db": THRESHOLD_DB,
+                "mode": current_mode,
+                "threshold_db": current_threshold,
                 "status": status,
                 "green_button": green_state,
                 "red_button": red_state,
@@ -313,11 +374,21 @@ def main():
             mqtt_state = "OK" if mqtt_ok else "OFF"
 
             # OLED update
-            show_oled(db_value, status, green_state, red_state, buzzer_state, mqtt_state)
+            show_oled(
+                db_value,
+                status,
+                current_mode,
+                green_state,
+                red_state,
+                buzzer_state,
+                mqtt_state
+            )
 
             # Terminal output
             print(
                 f"dB: {db_value} | "
+                f"Mode: {current_mode} | "
+                f"Threshold: {current_threshold} | "
                 f"Status: {status} | "
                 f"Green: {green_state} | "
                 f"Red: {red_state} | "
@@ -329,7 +400,7 @@ def main():
 
     except KeyboardInterrupt:
         buzzer.off()
-        show_oled("Stopped", "OFF", "NONE", "NONE", "OFF", "OFF")
+        show_oled("Stopped", "OFF", current_mode, "NONE", "NONE", "OFF", "OFF")
         print("Smart Noise Monitor stopped.")
 
     finally:
@@ -342,4 +413,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
