@@ -108,6 +108,7 @@ def on_message(client, userdata, msg):
         avg_db=avg_db,
         peak_db=payload.get("peak_db", avg_db),
         status=calculated_status,
+        event_type=payload.get("event_type", "NONE"),
         mode=mode,
         event_marker=payload.get("event_marker",
                                  payload.get("green_button") == "EVENT"),
@@ -308,6 +309,32 @@ def forecast_reading():
     forecast_result = generate_forecast(rows)
 
     return jsonify(forecast_result)
+
+@app.route("/api/events", methods=["GET"])
+def api_events():
+
+    rows = get_latest_readings(limit=50)
+
+    important = []
+
+    for row in rows:
+
+        event_type = row[13] if len(row) > 13 else None
+
+        if event_type in [
+            "ALERT",
+            "MUTED",
+            "MANUAL_ALERT"
+        ]:
+
+            important.append({
+                "timestamp": row[7],
+                "db": row[1],
+                "status": row[3],
+                "event_type": event_type
+            })
+
+    return jsonify(important)
 
 
 # ============================================================
