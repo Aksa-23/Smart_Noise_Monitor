@@ -22,7 +22,8 @@ def init_db():
         device_ip TEXT,
         location TEXT,
         threshold_db REAL,
-        buzzer TEXT
+        buzzer TEXT,
+        event_type TEXT
     )
     """)
 
@@ -32,6 +33,7 @@ def init_db():
         "location": "TEXT",
         "threshold_db": "REAL",
         "buzzer": "TEXT",
+        "event_type": "TEXT",
     }
 
     for column_name, column_type in new_columns.items():
@@ -49,6 +51,7 @@ def init_db():
 def insert_reading(avg_db,
                    peak_db,
                    status,
+                   event_type,
                    mode,
                    event_marker,
                    muted,
@@ -66,8 +69,8 @@ def insert_reading(avg_db,
     cursor.execute("""
     INSERT INTO noise_readings
     (avg_db, peak_db, status, mode, event_marker, muted, timestamp,
-     device_id, device_ip, location, threshold_db, buzzer)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     device_id, device_ip, location, threshold_db, buzzer, event_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         avg_db,
         peak_db,
@@ -80,7 +83,8 @@ def insert_reading(avg_db,
         device_ip,
         location,
         threshold_db,
-        buzzer
+        buzzer,
+        event_type
     ))
 
     conn.commit()
