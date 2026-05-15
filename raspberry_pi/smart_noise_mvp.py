@@ -284,9 +284,9 @@ def calculate_db(audio):
 # ============================================================
 
 def handle_buzzer(status):
-    if status in ["ALERT", "MANUAL_ALERT"]:
+    if status in ["ALERT", "MANUAL_ALERT", "EVENT"]:
         buzzer.on()
-        time.sleep(0.1)
+        time.sleep(0.2)
         buzzer.off()
         return "BEEP"
 
@@ -313,7 +313,7 @@ def main():
     print("MQTT publishing enabled if broker is running.")
     print("Green button = manual alert")
     print("Red button = toggle mute / unmute")
-    print("Buzzer = beeps when status is ALERT or MANUAL_ALERT")
+    print("Buzzer = beeps when status is ALERT, MANUAL_ALERT, or EVENT")
     print("Mode-based thresholds:")
     print("Study = 50 dB")
     print("Normal = 70 dB")
@@ -330,7 +330,7 @@ def main():
 
             # Green button behaviour
             if green_button.is_pressed:
-                green_state = "MANUAL_ALERT"
+                green_state = "EVENT"
             else:
                 green_state = "NONE"
 
@@ -353,8 +353,8 @@ def main():
 
             red_was_pressed = red_button.is_pressed
 
-            # Status logic based on current mode threshold and mute state
-            manual_alert = green_button.is_pressed
+            # Status logic based on current mode threshold, mute state, and green button event
+            manual_alert = green_button.is_pressed or green_state == "EVENT"
 
             if manual_alert:
                 status = "MANUAL_ALERT"
