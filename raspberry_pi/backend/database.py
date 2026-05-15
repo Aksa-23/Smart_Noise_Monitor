@@ -75,6 +75,7 @@ def insert_reading(avg_db,
         avg_db,
         peak_db,
         status,
+        event_type,
         mode,
         event_marker,
         muted,
@@ -83,8 +84,7 @@ def insert_reading(avg_db,
         device_ip,
         location,
         threshold_db,
-        buzzer,
-        event_type
+        buzzer
     ))
 
     conn.commit()

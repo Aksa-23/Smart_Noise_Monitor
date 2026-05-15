@@ -371,10 +371,10 @@ def main():
                 "mode": current_mode,
                 "threshold_db": current_threshold,
                 "status": status,
+                "event_type": status,
                 "green_button": green_state,
                 "red_button": red_state,
-                "buzzer": buzzer_state,
-                "event_type": status
+                "buzzer": buzzer_state
             }
 
             mqtt_ok = publish_mqtt(mqtt_client, payload)
