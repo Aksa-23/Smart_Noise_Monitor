@@ -482,3 +482,27 @@ canvas {
 .top-actions i {
   font-size: 18px;
 }
+
+.event-log-card {
+  grid-column: 1 / 4;
+}
+
+.event-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.event-table th,
+.event-table td {
+  padding: 12px;
+  border-bottom: 1px solid #233349;
+  text-align: left;
+}
+
+.event-table th {
+  color: #94a3b8;
+}
+
+.event-table td {
+  color: #f8fafc;
+}

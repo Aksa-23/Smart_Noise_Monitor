@@ -105,5 +105,37 @@ async function setMode(mode) {
   fetchLiveData();
 }
 
+async function fetchEvents() {
+
+  const res = await fetch("/api/events");
+  const events = await res.json();
+
+  const tbody = document.getElementById("eventTableBody");
+
+  tbody.innerHTML = "";
+
+  if (events.length === 0) {
+
+    tbody.innerHTML =
+      `<tr><td colspan="4">No events yet</td></tr>`;
+
+    return;
+  }
+
+  events.forEach(event => {
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${event.timestamp}</td>
+        <td>${event.db}</td>
+        <td>${event.status}</td>
+        <td>${event.event_type}</td>
+      </tr>
+    `;
+  });
+}
+
 fetchLiveData();
 setInterval(fetchLiveData, 2000);
+fetchEvents();
+setInterval(fetchEvents, 3000);
