@@ -285,7 +285,7 @@ def calculate_db(audio):
 # ============================================================
 
 def handle_buzzer(status):
-    if status == "ALERT":
+    if status in ["ALERT", "MANUAL_ALERT"]:
         buzzer.on()
         time.sleep(0.1)
         buzzer.off()
@@ -332,7 +332,7 @@ def main():
 
             # Green button behaviour
             if green_button.is_pressed:
-                green_state = "EVENT"
+                green_state = "MANUAL_ALERT"
             else:
                 green_state = "NONE"
 
@@ -344,11 +344,17 @@ def main():
                 red_state = "NONE"
 
             # Status logic based on current mode threshold
-            if db_value >= current_threshold:
+            manual_alert = green_button.is_pressed
+
+            if manual_alert:
+                status = "MANUAL_ALERT"
+
+            elif db_value >= current_threshold:
                 if current_time < muted_until:
                     status = "MUTED"
                 else:
                     status = "ALERT"
+
             else:
                 status = "NORMAL"
 
@@ -367,7 +373,8 @@ def main():
                 "status": status,
                 "green_button": green_state,
                 "red_button": red_state,
-                "buzzer": buzzer_state
+                "buzzer": buzzer_state,
+                "event_type": status
             }
 
             mqtt_ok = publish_mqtt(mqtt_client, payload)
