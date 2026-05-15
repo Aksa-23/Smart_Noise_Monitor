@@ -16,8 +16,8 @@ from gpiozero import Button, Buzzer
 # Hardware:
 # - USB microphone
 # - PiicoDev OLED SSD1306
-# - Green button = manual event marker
-# - Red button = mute / acknowledge alert
+# - Green button = manual alert marker
+# - Red button = toggle mute / unmute
 # - 5V buzzer connected directly as advised by lab facilitator
 # - MQTT publishes JSON readings to smart_noise/readings
 # - MQTT subscribes to smart_noise/mode for dashboard mode changes
@@ -27,15 +27,15 @@ from gpiozero import Button, Buzzer
 # -----------------------------
 # Microphone settings
 # -----------------------------
-MIC_DEVICE = "plughw:2,0"   # USB microphone from arecord -l
+MIC_DEVICE = "plughw:2,0"
 SAMPLE_RATE = 16000
-DURATION = 1                # seconds per audio sample
+DURATION = 1
 
 
 # -----------------------------
 # OLED settings
 # -----------------------------
-OLED_ADDR = 0x3D            # OLED address from i2cdetect -y 1
+OLED_ADDR = 0x3D
 I2C_BUS = 1
 WIDTH = 128
 HEIGHT = 64
@@ -43,11 +43,10 @@ HEIGHT = 64
 
 # -----------------------------
 # GPIO settings
-# Use the printed GPIO labels on the Pi case
 # -----------------------------
-GREEN_BUTTON_GPIO = 17      # Green button: GPIO17 + ground symbol
-RED_BUTTON_GPIO = 27        # Red button: GPIO27 + ground symbol
-BUZZER_GPIO = 22            # Buzzer + to GPIO22, buzzer - to ground symbol
+GREEN_BUTTON_GPIO = 17
+RED_BUTTON_GPIO = 27
+BUZZER_GPIO = 22
 
 
 # -----------------------------
@@ -61,8 +60,11 @@ THRESHOLDS = {
     "Event": 85
 }
 
-CALIBRATION_OFFSET = 90     # Keep this if quiet room reads around 35-45 dB
-MUTE_SECONDS = 10           # Red button mutes alert buzzer for 10 seconds
+CALIBRATION_OFFSET = 90
+
+# Red button toggle mute state
+mute_enabled = False
+red_was_pressed = False
 
 
 # -----------------------------
@@ -85,8 +87,6 @@ green_button = Button(GREEN_BUTTON_GPIO, pull_up=True, bounce_time=0.1)
 red_button = Button(RED_BUTTON_GPIO, pull_up=True, bounce_time=0.1)
 buzzer = Buzzer(BUZZER_GPIO)
 
-muted_until = 0
-
 
 # ============================================================
 # MQTT FUNCTIONS
@@ -99,7 +99,6 @@ def on_connect(client, userdata, flags, rc):
 
         client.subscribe(MQTT_MODE_TOPIC)
         print(f"Subscribed to mode topic: {MQTT_MODE_TOPIC}")
-
     else:
         print(f"MQTT connection failed with return code: {rc}")
 
@@ -300,7 +299,7 @@ def handle_buzzer(status):
 # ============================================================
 
 def main():
-    global muted_until
+    global mute_enabled, red_was_pressed
 
     mqtt_client = setup_mqtt()
 
@@ -312,9 +311,9 @@ def main():
     print("Smart Noise Monitor MVP started.")
     print("Hardware included: USB mic, OLED, green button, red button, buzzer")
     print("MQTT publishing enabled if broker is running.")
-    print("Green button = manual event marker")
-    print("Red button = mute / acknowledge alert")
-    print("Buzzer = beeps when status is ALERT")
+    print("Green button = manual alert")
+    print("Red button = toggle mute / unmute")
+    print("Buzzer = beeps when status is ALERT or MANUAL_ALERT")
     print("Mode-based thresholds:")
     print("Study = 50 dB")
     print("Normal = 70 dB")
@@ -325,7 +324,6 @@ def main():
         while True:
             audio = read_audio_chunk()
             db_value = calculate_db(audio)
-            current_time = time.time()
 
             # Get current threshold from current mode
             current_threshold = THRESHOLDS[current_mode]
@@ -337,24 +335,34 @@ def main():
                 green_state = "NONE"
 
             # Red button behaviour
-            if red_button.is_pressed:
-                muted_until = current_time + MUTE_SECONDS
-                red_state = "MUTE"
+            # Press once to mute. Press again to unmute.
+            if red_button.is_pressed and not red_was_pressed:
+                mute_enabled = not mute_enabled
+
+                if mute_enabled:
+                    red_state = "MUTED"
+                    print("Mute enabled")
+                else:
+                    red_state = "UNMUTED"
+                    print("Mute disabled")
+
+            elif mute_enabled:
+                red_state = "MUTED"
             else:
                 red_state = "NONE"
 
-            # Status logic based on current mode threshold
+            red_was_pressed = red_button.is_pressed
+
+            # Status logic based on current mode threshold and mute state
             manual_alert = green_button.is_pressed
 
             if manual_alert:
                 status = "MANUAL_ALERT"
-
             elif db_value >= current_threshold:
-                if current_time < muted_until:
+                if mute_enabled:
                     status = "MUTED"
                 else:
                     status = "ALERT"
-
             else:
                 status = "NORMAL"
 
@@ -374,6 +382,7 @@ def main():
                 "event_type": status,
                 "green_button": green_state,
                 "red_button": red_state,
+                "mute_enabled": mute_enabled,
                 "buzzer": buzzer_state
             }
 
@@ -399,6 +408,7 @@ def main():
                 f"Status: {status} | "
                 f"Green: {green_state} | "
                 f"Red: {red_state} | "
+                f"Mute: {mute_enabled} | "
                 f"Buzzer: {buzzer_state} | "
                 f"MQTT: {mqtt_state}"
             )
